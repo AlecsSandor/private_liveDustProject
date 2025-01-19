@@ -1,0 +1,439 @@
+<html>
+<div class="wrapper">
+    <canvas id="canvas"></canvas>
+</div>
+<style>
+    #canvas {
+        background: rgb(22, 22, 22);
+    }
+
+    .wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        background: rgb(22, 22, 22);
+    }
+
+    .input-area {
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+    }
+
+    .input-area input {
+        width: 600px;
+        padding: 8px;
+        font-size: 16px;
+    }
+
+    .input-area button {
+        padding: 8px 16px;
+        font-size: 16px;
+        margin-left: 10px;
+        cursor: pointer;
+    }
+</style>
+<div class="input-area">
+    <input type="text" id="userInput" placeholder="Enter your message or /image prompt">
+    <button id="sendButton">Send</button>
+</div>
+<style>
+    #canvas {
+        background: rgb(22, 22, 22);
+    }
+
+    .wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        background: rgb(22, 22, 22);
+    }
+</style>
+<script>
+
+    var canvas = document.getElementById('canvas'),
+        context = canvas.getContext('2d'),
+        //image = new Image(),
+        particle_size = 3,
+        height, width, arr = [];
+
+    //image.crossOrigin = "Anonymous";
+    //image.src = "img_18.jpg";
+    //image.onload = init;
+
+    class NetworkManager {
+        constructor() {
+            this.baseURL = "https://09d8-62-254-134-106.ngrok-free.app"; // Replace with your Flask server's URL
+        }
+
+        // Function to send a message to the server
+        async sendMessage(message) {
+            try {
+                const response = await fetch(`${this.baseURL}/chat`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: `message=${encodeURIComponent(message)}`,
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return { userMessage: data.user, botResponse: data.bot };
+            } catch (error) {
+                console.error("Error sending message:", error);
+                throw error;
+            }
+        }
+    }
+
+    // Singleton instance
+    const networkManager = new NetworkManager();
+
+    // Function to handle image or chat interaction
+    async function handleUserInput(input) {
+        try {
+            const { userMessage, botResponse } = await networkManager.sendMessage(input);
+
+            if (input.startsWith("/image")) {
+                // If the bot response contains an image URL, load it into the canvas
+                //alert(botResponse)
+                loadImageToCanvas(botResponse);
+            } else {
+                // Handle text-based responses (e.g., display in UI)
+                console.log("User:", userMessage);
+                console.log("Bot:", botResponse);
+            }
+        } catch (error) {
+            console.error("Error handling user input:", error);
+        }
+    }
+
+
+    function loadImageToCanvas(imageUrl) {
+        //alert("d")
+        // const canvas = document.getElementById("canvas");
+        // const context = canvas.getContext("2d");
+        const image = new Image();
+
+        image.crossOrigin = "Anonymous";
+        image.src = imageUrl;
+        image.onload = () => {
+            //alert("imag eloadde")
+            context.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+            // canvas.width = image.width;
+            // canvas.height = image.height;
+            // context.drawImage(image, 0, 0); // Draw the image onto the canvas
+            init(image);
+        };
+        image.onerror = (err) => {
+            console.error("Failed to load image:", err);
+        };
+    }
+
+    // Example button click handler
+    document.getElementById("sendButton").addEventListener("click", () => {
+        const userInput = document.getElementById("userInput").value;
+        handleUserInput(userInput);
+    });
+
+
+
+
+
+
+
+
+
+
+
+    function Particle(x, y, c, s) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+
+        this.s = s;
+        this.c = c;
+
+        this.sx = x;
+        this.sy = y;
+
+        this.time = Date.now();
+
+        this.driftSpeed = 0.05;  // Add a drift speed
+        this.driftAmount = Math.random() * 0.5 + 0.5;  // Randomize drift strength for each particle
+        this.noiseFactor = 2;
+    }
+    Particle.prototype = {
+        constructor: Particle,
+        update: function () {
+
+            // Calculate distance to the target position
+            let dx = this.sx - this.x;
+            let dy = this.sy - this.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            //     // Calculate canvas center and distance from it
+            let centerX = 1024 / 2;
+            let centerY = 1024 / 2;
+            let distanceFromCenter = Math.sqrt((this.sx - centerX) ** 2 + (this.sy - centerY) ** 2);
+
+            // // Normalize distance to a value between 0 and 1
+            let maxDistance = Math.sqrt((1024 / 2) ** 2 + (1024 / 2) ** 2);
+            let distanceFactor = distanceFromCenter / maxDistance;
+
+
+            if (distance > 3.1 && distanceFactor < 0.4) {
+                    // If the particle is far from its target, move towards it
+                    this.vx = dx / 10;
+                    this.vy = dy / 10;
+                } else if (distance > 34.1 && distanceFactor >= 0.4) {
+                    this.vx = dx / 100;
+                    this.vy = dy / 100;
+                } else {
+                    // If the particle is close to its target, let it wiggle
+                    const time = Date.now() * 0.001 * distanceFactor; // Time factor for smoother motion
+                    this.vx += (Math.random() - 0.5) * this.noiseFactor * 0.02;
+                    this.vy += (Math.random() - 0.5) * this.noiseFactor * 0.02;
+
+                }
+            // Update position with velocity
+            this.x += this.vx;
+            this.y += this.vy;
+        },
+        render: function (context) {
+            context.beginPath();
+            context.fillStyle = this.c;
+            context.arc(this.x + this.s / 2, this.y + this.s / 2, this.s / 2, 0, Math.PI * 2);
+            context.fill();
+            context.closePath();
+
+
+        }
+    };
+
+    function applySobelEdgeDetection(imageData) {
+        const width = imageData.width;
+        const height = imageData.height;
+        const data = imageData.data;
+
+        // Grayscale conversion
+        const grayscale = new Uint8ClampedArray(width * height);
+        for (let i = 0; i < data.length; i += 4) {
+            const avg = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
+            grayscale[i / 4] = avg;
+        }
+
+        // Sobel kernels
+        const sobelX = [
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1],
+        ];
+        const sobelY = [
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1],
+        ];
+
+
+        // Convolution for edge detection
+        const edges = new Uint8ClampedArray(width * height);
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                let pixelX = 0;
+                let pixelY = 0;
+
+                // Apply kernels
+                for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                        const pixel = grayscale[(y + ky) * width + (x + kx)];
+                        pixelX += pixel * sobelX[ky + 1][kx + 1];
+                        pixelY += pixel * sobelY[ky + 1][kx + 1];
+                    }
+                }
+
+                // Calculate gradient magnitude
+                const magnitude = Math.sqrt(pixelX ** 2 + pixelY ** 2);
+                edges[y * width + x] = magnitude > 90 ? 255 : 0; // Thresholding
+                //   edges[y * width + x] = Math.min(255, magnitude);
+            }
+        }
+
+        // Create new image data for the edges
+        const edgesImageData = new ImageData(width, height);
+        for (let i = 0; i < edges.length; i++) {
+            const value = edges[i];
+            edgesImageData.data[i * 4] = value;     // Red
+            edgesImageData.data[i * 4 + 1] = value; // Green
+            edgesImageData.data[i * 4 + 2] = value; // Blue
+            edgesImageData.data[i * 4 + 3] = 255;   // Alpha
+        }
+
+        return edgesImageData;
+    }
+    const MAX_PARTICLES = 10000;
+    function init(image) {
+        arr = [];
+        height = canvas.height = 1024;
+        width = canvas.width = 1024;
+        const darknessThreshold = 160;
+
+        context.drawImage(image, 0, 0);
+        const idata = context.getImageData(0, 0, width, height);
+        const data = idata.data;
+
+        const edgeImageData = applySobelEdgeDetection(idata);
+        const edgeData = edgeImageData.data;
+
+        context.clearRect(0, 0, width, height);
+
+        const potentialParticles = [];
+        for (let y = 0; y < height; y += particle_size) {
+            for (let x = 0; x < width; x += particle_size) {
+                const o = x * 4 + y * 4 * idata.width;
+                const brightness = edgeData[o];
+
+                if (brightness > darknessThreshold) {
+                    const c = `rgba(19, 124, 217, ${edgeData[o + 3] / 255})`;
+                    potentialParticles.push({ x, y, c });
+                }
+            }
+        }
+
+        // Randomly select particles if there are more than MAX_PARTICLES
+        const selectedParticles = potentialParticles.length > MAX_PARTICLES
+            ? potentialParticles.sort(() => Math.random() - 0.5).slice(0, MAX_PARTICLES)
+            : potentialParticles;
+
+        // Create particles
+        for (let i = 0; i < selectedParticles.length; i++) {
+            const { x, y, c } = selectedParticles[i];
+            const p = new Particle(x, y, c, particle_size);
+            p.x = Math.random() * width;
+            p.y = Math.random() * height;
+            arr.push(p);
+        }
+
+        update();
+        render();
+    }
+
+    // function init(image) {
+    //     arr = [];
+    //     height = canvas.height = 1024//image.height;
+    //     width = canvas.width = 1024//image.width;
+    //     darknessThreshold = 160;
+
+    //     context.drawImage(image, 0, 0);
+    //     var idata = context.getImageData(0, 0, width, height),
+    //         data = idata.data;
+
+
+    //     //Apply contrast enhancement on the image pixels
+    //     // var contrast = 150;  // You can adjust this value to your liking
+    //     // for (var i = 0; i < data.length; i += 4) {
+    //     //     for (var j = 0; j < 3; j++) {
+    //     //         var color = data[i + j];
+    //     //         var factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+    //     //         color = factor * (color - 128) + 128;
+    //     //         data[i + j] = Math.min(255, Math.smax(0, color)); // Ensure within bounds
+    //     //     }
+    //     // }
+
+    //     // Apply Sobel edge detection
+    //     const edgeImageData = applySobelEdgeDetection(idata);
+
+    //     // Extract the edge-detected data
+    //     data = edgeImageData.data;
+
+    //     context.clearRect(0, 0, width, height);
+
+
+    //     // for (var y = 0; y < height; y += particle_size) {
+    //     //     for (var x = 0; x < width; x += particle_size) {
+    //     //         var o = x * 4 + y * 4 * idata.width;
+    //     //         if (data[o + 3] > 210) {
+    //     //             var c = 'rgba(' + data[o] + ',' + data[o + 1] + ',' + data[o + 2] + ',' + data[o + 3] + ')',
+    //     //                 p = new Particle(x, y, c, particle_size);
+    //     //             p.x = Math.random() * width;
+    //     //             p.y = Math.random() * height;
+    //     //             arr.push(p);
+    //     //         }
+    //     //     }
+    //     // }
+
+    //     for (var y = 0; y < height; y += particle_size) {
+    //         for (var x = 0; x < width; x += particle_size) {
+    //             var o = x * 4 + y * 4 * idata.width;
+    //             var red = data[o];
+    //             var green = data[o + 1];
+    //             var blue = data[o + 2];
+
+    //             // Convert to grayscale using the weighted average formula
+    //             //var brightness = 0.299 * red + 0.587 * green + 0.114 * blue;
+    //             const brightness = data[o];
+
+    //             // Only render particles in darker areas (threshold for darkness)
+    //             if (brightness > darknessThreshold) {
+    //                 //var c = 'rgba(' + red + ',' + green + ',' + blue + ',' + data[o + 3] / 255 + ')';
+    //                 var c = 'rgba(19, 124, 217, ' + data[o + 3] / 255 + ')';
+    //                 var grayscale = Math.round(brightness); // Grayscale value, rounding it to an integer
+    //                 //var c = 'rgba(' + grayscale + ',' + grayscale + ',' + grayscale + ',' + data[o + 3] / 255 + ')';
+    //                 //var c = 'rgba(0,0,' + grayscale + ',' + data[o + 3] / 255 + ')';
+    //                 var p = new Particle(x, y, c, particle_size);
+    //                 p.x = Math.random() * width;
+    //                 p.y = Math.random() * height;
+    //                 arr.push(p);
+    //             }
+    //         }
+    //     }
+
+    //     // canvas.onmousemove = force;
+
+    //     update();
+    //     render();
+    // }
+
+    function force(e) {
+        var x = e.clientX,
+            y = e.clientY;
+        for (var i = 0, l = arr.length; i < l; i++) {
+            var dx = x - arr[i].x,
+                dy = y - arr[i].y,
+                d = Math.sqrt(dx * dx + dy * dy);
+            if (d < 64) {
+                var r = Math.atan2(dy, dx);
+                arr[i].vx = -(d) * Math.cos(r);
+                arr[i].vy = -(d) * Math.sin(r);
+            }
+        }
+    }
+
+    function update() {
+        for (var i = 0, l = arr.length; i < l; i++) {
+            arr[i].update();
+        }
+        setTimeout(update, 1000 / 30);
+    }
+
+    function render() {
+        context.clearRect(0, 0, width, height);
+        for (var i = 0, l = arr.length; i < l; i++) {
+            arr[i].render(context);
+        }
+        requestAnimationFrame(render);
+    }
+</script>
+
+</html>
